@@ -1,0 +1,3 @@
+# Append [scratch-on] to a workspace name while its scratch session is hidden.
+# The default is true when this file or setting is absent.
+mark_workspace = true

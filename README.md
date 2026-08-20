@@ -27,7 +27,7 @@ REPLs therefore resume where they were left.
 - Hide the popup without killing its process using `prefix+f` or `prefix+F`.
 - Close the popup and its process using confirmed `prefix+x`.
 - Keep hidden scratch sessions and their current viewport in `tmux`.
-- Mark workspaces with a hidden scratch session using ` [scratch-on]`.
+- Optionally mark workspaces with a hidden scratch session using ` [scratch-on]`.
 
 This uses Herdr's native session-modal popup rather than drawing a fake terminal
 backdrop. The popup follows the terminal size automatically but is not
@@ -162,6 +162,29 @@ The keybindings intentionally use `type = "shell"` instead of
 `type = "plugin_action"`. Herdr named sessions share the same config, but a new
 session may not have the plugin action registry loaded yet. Calling the binary
 directly keeps `prefix+f` and `prefix+shift+f` working across sessions.
+
+## Configuration
+
+Plugin configuration is optional. By default, hiding a persistent scratch
+session appends ` [scratch-on]` to its workspace name. To keep workspace names
+unchanged, create the plugin config file with:
+
+```sh
+config_file="$(herdr plugin config-dir herdr-scratch-pane)/config.toml"
+printf 'mark_workspace = false\n' > "$config_file"
+```
+
+The supported setting is:
+
+```toml
+# Append [scratch-on] while a scratch session is hidden. Defaults to true.
+mark_workspace = false
+```
+
+The setting is read when the plugin starts, so Herdr does not need a config
+reload. If a workspace already has a plugin-owned marker, the plugin safely
+restores its original name during the next scratch interaction. A workspace
+name changed manually after it was marked is left untouched.
 
 If you installed an earlier version, run `install-keybindings` again. It updates
 old scratch pane keybindings, removes the previous split-key workaround, and
