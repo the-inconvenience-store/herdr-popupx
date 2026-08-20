@@ -1,5 +1,6 @@
 pub mod app;
 pub mod commands;
+pub mod config;
 pub mod decisions;
 pub mod herdr;
 pub mod keybindings;
