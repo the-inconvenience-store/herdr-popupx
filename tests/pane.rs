@@ -194,6 +194,33 @@ fn popup_prefix_f_detaches_and_reattaches_the_same_viewport() {
 }
 
 #[test]
+fn disabled_workspace_marker_keeps_workspace_label_unchanged() {
+    let test_dir = TestDir::new("marker-off");
+    let config_dir = test_dir.path.join("config");
+    fs::create_dir_all(&config_dir).expect("plugin config directory should be created");
+    fs::write(config_dir.join("config.toml"), "mark_workspace = false\n")
+        .expect("plugin config should be written");
+
+    start_host_pane(&test_dir);
+    wait_for_scratch_session(&test_dir);
+    send_popup_keys(&test_dir, &["C-b", "f"]);
+    wait_for_host_to_exit(&test_dir);
+
+    let state_file = state_path(&test_dir.path, Scope::Workspace, Some("w1"), None);
+    let state = read_state(&state_file)
+        .expect("detached state should be readable")
+        .expect("detached session should keep state");
+    assert_eq!(state.original_workspace_label, None);
+    assert_eq!(state.marked_workspace_label, None);
+
+    let commands = fs::read_to_string(test_dir.path.join("herdr-commands.log"))
+        .expect("fake Herdr commands should be recorded");
+    assert!(!commands
+        .lines()
+        .any(|line| line.starts_with("workspace rename")));
+}
+
+#[test]
 fn popup_prefix_x_confirmation_kills_only_the_exact_session() {
     let test_dir = TestDir::new("px");
     let status = Command::new("tmux")
@@ -415,6 +442,14 @@ fn start_host_pane_with_size(test_dir: &TestDir, width: &str, height: &str) {
             "HERDR_PLUGIN_STATE_DIR={}",
             test_dir.path.display()
         ))
+        .arg(format!(
+            "HERDR_PLUGIN_CONFIG_DIR={}",
+            test_dir.path.join("config").display()
+        ))
+        .arg(format!(
+            "FAKE_HERDR_LOG={}",
+            test_dir.path.join("herdr-commands.log").display()
+        ))
         .arg("HERDR_WORKSPACE_ID=w1")
         .arg(format!(
             "HERDR_SCRATCH_PANE_CWD={}",
@@ -437,6 +472,10 @@ fn fake_herdr(test_dir: &TestDir) -> PathBuf {
     fs::write(
         &path,
         r#"#!/bin/sh
+if [ -n "${FAKE_HERDR_LOG:-}" ]; then
+    printf '%s\n' "$*" >> "$FAKE_HERDR_LOG"
+fi
+
 case "$1 $2" in
   "pane current")
     printf '%s\n' '{"result":{"pane":{"pane_id":"host","workspace_id":"w1","cwd":"/tmp","label":"main","focused":true}}}'

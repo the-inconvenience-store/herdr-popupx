@@ -8,6 +8,7 @@ use crate::commands::{
     clear_legacy_marker_args, close_pane_args, notification_args, open_popup_args,
     workspace_rename_args, PopupOpenRequest,
 };
+use crate::config::load_plugin_config;
 use crate::decisions::{
     decide_toggle, minimize_decision, MinimizeDecision, ToggleDecision, ToggleInputs,
 };
@@ -24,6 +25,7 @@ use crate::workspace_marker::{
 };
 
 pub fn toggle(scope: Scope) -> Result<()> {
+    let config = load_plugin_config()?;
     let herdr = Herdr::from_env();
     let current = herdr.current_pane()?;
     let panes = herdr.pane_list()?;
@@ -55,10 +57,11 @@ pub fn toggle(scope: Scope) -> Result<()> {
             }
         }
     }
-    open_popup(&herdr, scope, &current)
+    open_popup(&herdr, scope, &current, config.mark_workspace)
 }
 
 pub fn minimize() -> Result<()> {
+    let config = load_plugin_config()?;
     let herdr = Herdr::from_env();
     let current = herdr.current_pane()?;
     let panes = herdr.pane_list()?;
@@ -70,7 +73,14 @@ pub fn minimize() -> Result<()> {
                 .or_else(|| (current.pane_id == pane_id).then_some(&current))
                 .and_then(scope_from_scratch_pane)
                 .unwrap_or(Scope::Workspace);
-            close_scratch_and_mark(&herdr, &pane_id, scope, &current, &panes)
+            close_scratch_and_mark(
+                &herdr,
+                &pane_id,
+                scope,
+                &current,
+                &panes,
+                config.mark_workspace,
+            )
         }
         MinimizeDecision::NotifyNoVisiblePane => herdr
             .run(notification_args(
@@ -106,6 +116,7 @@ pub fn install_keybindings(
 }
 
 pub fn run_popup(scope: Scope) -> Result<()> {
+    let config = load_plugin_config()?;
     let herdr = Herdr::from_env();
     let current = herdr.current_pane().ok();
     let workspace_id = std::env::var("HERDR_WORKSPACE_ID")
@@ -132,7 +143,12 @@ pub fn run_popup(scope: Scope) -> Result<()> {
 
     match run_client(scope) {
         Ok(SessionDisposition::Detached) => {
-            mark_workspace_label(&herdr, &mut state, workspace_id.as_deref())?;
+            sync_workspace_marker(
+                &herdr,
+                &mut state,
+                workspace_id.as_deref(),
+                config.mark_workspace,
+            )?;
             write_state(&path, &state)
         }
         Ok(SessionDisposition::Ended) => {
@@ -150,7 +166,7 @@ pub fn run_popup(scope: Scope) -> Result<()> {
     }
 }
 
-fn open_popup(herdr: &Herdr, scope: Scope, current: &PaneInfo) -> Result<()> {
+fn open_popup(herdr: &Herdr, scope: Scope, current: &PaneInfo, mark_workspace: bool) -> Result<()> {
     let config_path = default_config_path();
     let config = read_config_or_empty(&config_path)?;
     let tmux_prefix = tmux_prefix_from_config(&config).with_context(|| {
@@ -194,7 +210,7 @@ fn open_popup(herdr: &Herdr, scope: Scope, current: &PaneInfo) -> Result<()> {
     })) {
         Ok(_) => Ok(()),
         Err(error) => {
-            rollback_popup_open(herdr, scope, current, &path, &mut state);
+            rollback_popup_open(herdr, scope, current, &path, &mut state, mark_workspace);
             Err(error)
         }
     }
@@ -206,6 +222,7 @@ fn rollback_popup_open(
     current: &PaneInfo,
     path: &Path,
     state: &mut ScratchState,
+    mark_workspace: bool,
 ) {
     let state_dir = default_state_dir();
     let session_id = scratch_session_identity();
@@ -221,7 +238,12 @@ fn rollback_popup_open(
     .unwrap_or(false);
 
     if session_alive {
-        let _ = mark_workspace_label(herdr, state, current.workspace_id.as_deref());
+        let _ = sync_workspace_marker(
+            herdr,
+            state,
+            current.workspace_id.as_deref(),
+            mark_workspace,
+        );
         let _ = write_state(path, state);
     } else {
         let _ = remove_state(path);
@@ -256,6 +278,7 @@ fn close_scratch_and_mark(
     scope: Scope,
     current: &PaneInfo,
     panes: &[PaneInfo],
+    mark_workspace: bool,
 ) -> Result<()> {
     let path = state_file(scope, current.workspace_id.as_deref());
     let mut state = read_state(&path)?.unwrap_or(ScratchState {
@@ -273,7 +296,12 @@ fn close_scratch_and_mark(
     if let Some(target) = legacy_marker_target {
         let _ = herdr.run(clear_legacy_marker_args(&target));
     }
-    mark_workspace_label(herdr, &mut state, current.workspace_id.as_deref())?;
+    sync_workspace_marker(
+        herdr,
+        &mut state,
+        current.workspace_id.as_deref(),
+        mark_workspace,
+    )?;
     write_state(&path, &state)?;
     Ok(())
 }
@@ -309,6 +337,19 @@ fn clear_background_marker(
         }
     }
     Ok(())
+}
+
+fn sync_workspace_marker(
+    herdr: &Herdr,
+    state: &mut ScratchState,
+    fallback_workspace_id: Option<&str>,
+    enabled: bool,
+) -> Result<()> {
+    if enabled {
+        mark_workspace_label(herdr, state, fallback_workspace_id)
+    } else {
+        restore_workspace_marker(herdr, state, fallback_workspace_id)
+    }
 }
 
 fn mark_workspace_label(
