@@ -153,6 +153,23 @@ fn popup_tmux_command_binds_hide_confirmed_close_and_send_prefix() {
 }
 
 #[test]
+fn popup_tmux_command_binds_direct_scratch_toggle_keys() {
+    let command = popup_tmux_command(
+        Scope::Workspace,
+        Some("w1"),
+        Some("server"),
+        Path::new("/tmp/state"),
+        "/bin/zsh",
+        None,
+        "C-b",
+    );
+    let joined = command.args.join(" ");
+
+    assert!(joined.contains("bind-key -T root S-F7 detach-client"));
+    assert!(joined.contains("bind-key -T root C-S-F7 detach-client"));
+}
+
+#[test]
 fn popup_prefix_f_detaches_and_reattaches_the_same_viewport() {
     let test_dir = TestDir::new("popup-detach");
     start_host_pane(&test_dir);

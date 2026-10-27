@@ -139,6 +139,8 @@ fn build_tmux_command(
     if let Some(prefix) = prefix {
         for binding in [
             vec!["unbind-key", "-a", "-T", "prefix"],
+            vec!["bind-key", "-T", "root", "S-F7", "detach-client"],
+            vec!["bind-key", "-T", "root", "C-S-F7", "detach-client"],
             vec!["bind-key", "-T", "prefix", "f", "detach-client"],
             vec!["bind-key", "-T", "prefix", "F", "detach-client"],
             vec![
