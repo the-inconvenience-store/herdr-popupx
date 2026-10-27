@@ -27,6 +27,7 @@ REPLs therefore resume where they were left.
 - Hide the popup without killing its process using `prefix+f` or `prefix+F`.
 - Close the popup and its process using confirmed `prefix+x`.
 - Keep hidden scratch sessions and their current viewport in `tmux`.
+- Scroll shell output with the mouse wheel while preserving mouse input in TUIs.
 - Optionally mark workspaces with a hidden scratch session using ` [scratch-on]`.
 
 This uses Herdr's native session-modal popup rather than drawing a fake terminal
@@ -200,6 +201,9 @@ the private tmux key table handles its lifecycle:
 | Popup | `prefix+f` or `prefix+F` | Hide the popup and keep its session running |
 | Popup | `prefix+x` | Confirm before ending only this scratch session |
 | Popup | Press prefix twice | Send the literal prefix to the running application |
+
+The mouse wheel enters tmux copy mode for shell scrollback. Full-screen
+applications that enable mouse input receive wheel events directly.
 
 ## Upgrading From v0.1.1
 

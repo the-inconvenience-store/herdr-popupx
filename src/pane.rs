@@ -118,7 +118,7 @@ fn build_tmux_command(
         "set-option".to_owned(),
         "-g".to_owned(),
         "mouse".to_owned(),
-        "off".to_owned(),
+        "on".to_owned(),
         ";".to_owned(),
         "set-option".to_owned(),
         "-s".to_owned(),

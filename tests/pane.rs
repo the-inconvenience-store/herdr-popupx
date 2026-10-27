@@ -83,7 +83,7 @@ fn tmux_command_uses_transparent_server_scope_cwd_and_login_shell() {
             "set-option",
             "-g",
             "mouse",
-            "off",
+            "on",
             ";",
             "set-option",
             "-s",
@@ -167,6 +167,48 @@ fn popup_tmux_command_binds_direct_scratch_toggle_keys() {
 
     assert!(joined.contains("bind-key -T root S-F7 detach-client"));
     assert!(joined.contains("bind-key -T root C-S-F7 detach-client"));
+}
+
+#[test]
+fn popup_tmux_enables_mouse_scrollback() {
+    let test_dir = TestDir::new("mouse");
+    start_host_pane(&test_dir);
+    wait_for_scratch_session(&test_dir);
+
+    let output = Command::new("tmux")
+        .env("TMUX_TMPDIR", &test_dir.path)
+        .env_remove("TMUX")
+        .env_remove("TMUX_PANE")
+        .args(["-L", TMUX_SERVER_NAME, "show-options", "-gv", "mouse"])
+        .output()
+        .expect("scratch tmux options should be readable");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "on");
+
+    let status = host_tmux(&test_dir)
+        .args(["send-keys", "-l", "-t", "host:0.0", "\u{1b}[<64;10;10M"])
+        .status()
+        .expect("host should forward a mouse-wheel event");
+    assert!(status.success());
+    thread::sleep(Duration::from_millis(20));
+
+    let copy_mode = command_stdout(
+        Command::new("tmux")
+            .env("TMUX_TMPDIR", &test_dir.path)
+            .env_remove("TMUX")
+            .env_remove("TMUX_PANE")
+            .args([
+                "-L",
+                TMUX_SERVER_NAME,
+                "display-message",
+                "-p",
+                "-t",
+                "workspace-w1:0.0",
+                "#{pane_in_mode}",
+            ]),
+    );
+    assert_eq!(copy_mode, "1");
+    stop_host_pane(&test_dir);
 }
 
 #[test]
